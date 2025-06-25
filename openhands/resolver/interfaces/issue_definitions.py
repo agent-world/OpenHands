@@ -8,11 +8,8 @@ import jinja2
 from openhands.core.config import LLMConfig
 from openhands.events.event import Event
 from openhands.llm.llm import LLM
-from openhands.resolver.interfaces.issue import (
-    Issue,
-    IssueHandlerInterface,
-    ReviewThread,
-)
+from openhands.resolver.interfaces.issue import (Issue, IssueHandlerInterface,
+                                                 ReviewThread)
 from openhands.resolver.utils import extract_image_urls
 
 
@@ -393,12 +390,26 @@ class ServiceContextIssue(ServiceContext):
             'r',
         ) as f:
             template = jinja2.Template(f.read())
+
+        # Truncate last_message to include only the last 200 lines
+        if last_message:
+            lines = last_message.split('\n')
+            if len(lines) > 200:
+                last_message = '\n'.join(lines[-200:])
+        # Truncate git_patch to include only the last 200 lines
+        if git_patch:
+            lines = git_patch.split('\n')
+            if len(lines) > 200:
+                git_patch = '\n'.join(lines[-200:])
+
+
         prompt = template.render(
             issue_context=issue_context,
             last_message=last_message,
             git_patch=git_patch or self.default_git_patch,
         )
 
+        print("guess success inputs", prompt)
         response = self.llm.completion(messages=[{'role': 'user', 'content': prompt}])
 
         answer = response.choices[0].message.content.strip()
