@@ -33,6 +33,15 @@ class ServiceContextPR(ServiceContext):
     def __init__(self, strategy: IssueHandlerInterface, llm_config: LLMConfig):
         super().__init__(strategy, llm_config)
 
+    def _truncate_to_last_200_lines(self, text: str, max_lines: int = 200) -> str:
+        """Helper function to truncate text to only the last N lines."""
+        if not text:
+            return text
+        lines = text.split('\n')
+        if len(lines) > max_lines:
+            return '\n'.join(lines[-max_lines:])
+        return text
+
     def get_clone_url(self) -> str:
         return self._strategy.get_clone_url()
 
@@ -188,6 +197,13 @@ class ServiceContextPR(ServiceContext):
         """Check if a review thread's feedback has been addressed."""
         files_context = json.dumps(review_thread.files, indent=4)
 
+        # Truncate all parameters
+        issues_context = self._truncate_to_last_200_lines(issues_context)
+        feedback = self._truncate_to_last_200_lines(review_thread.comment)
+        files_context = self._truncate_to_last_200_lines(files_context)
+        last_message = self._truncate_to_last_200_lines(last_message)
+        git_patch = self._truncate_to_last_200_lines(git_patch or self.default_git_patch)
+
         with open(
             os.path.join(
                 os.path.dirname(__file__),
@@ -199,10 +215,10 @@ class ServiceContextPR(ServiceContext):
 
         prompt = template.render(
             issue_context=issues_context,
-            feedback=review_thread.comment,
+            feedback=feedback,
             files_context=files_context,
             last_message=last_message,
-            git_patch=git_patch or self.default_git_patch,
+            git_patch=git_patch,
         )
 
         return self._check_feedback_with_llm(prompt)
@@ -217,6 +233,12 @@ class ServiceContextPR(ServiceContext):
         """Check if thread comments feedback has been addressed."""
         thread_context = '\n---\n'.join(thread_comments)
 
+        # Truncate all parameters
+        issues_context = self._truncate_to_last_200_lines(issues_context)
+        thread_context = self._truncate_to_last_200_lines(thread_context)
+        last_message = self._truncate_to_last_200_lines(last_message)
+        git_patch = self._truncate_to_last_200_lines(git_patch or self.default_git_patch)
+
         with open(
             os.path.join(
                 os.path.dirname(__file__),
@@ -230,7 +252,7 @@ class ServiceContextPR(ServiceContext):
             issue_context=issues_context,
             thread_context=thread_context,
             last_message=last_message,
-            git_patch=git_patch or self.default_git_patch,
+            git_patch=git_patch,
         )
 
         return self._check_feedback_with_llm(prompt)
@@ -245,6 +267,12 @@ class ServiceContextPR(ServiceContext):
         """Check if review comments feedback has been addressed."""
         review_context = '\n---\n'.join(review_comments)
 
+        # Truncate all parameters
+        issues_context = self._truncate_to_last_200_lines(issues_context)
+        review_context = self._truncate_to_last_200_lines(review_context)
+        last_message = self._truncate_to_last_200_lines(last_message)
+        git_patch = self._truncate_to_last_200_lines(git_patch or self.default_git_patch)
+
         with open(
             os.path.join(
                 os.path.dirname(__file__),
@@ -258,7 +286,7 @@ class ServiceContextPR(ServiceContext):
             issue_context=issues_context,
             review_context=review_context,
             last_message=last_message,
-            git_patch=git_patch or self.default_git_patch,
+            git_patch=git_patch,
         )
 
         return self._check_feedback_with_llm(prompt)
@@ -269,6 +297,15 @@ class ServiceContextIssue(ServiceContext):
 
     def __init__(self, strategy: IssueHandlerInterface, llm_config: LLMConfig | None):
         super().__init__(strategy, llm_config)
+
+    def _truncate_to_last_200_lines(self, text: str, max_lines: int = 200) -> str:
+        """Helper function to truncate text to only the last N lines."""
+        if not text:
+            return text
+        lines = text.split('\n')
+        if len(lines) > max_lines:
+            return '\n'.join(lines[-max_lines:])
+        return text
 
     def get_base_url(self) -> str:
         return self._strategy.get_base_url()
@@ -382,6 +419,11 @@ class ServiceContextIssue(ServiceContext):
                 issue.thread_comments
             )
 
+        # Truncate all parameters
+        issue_context = self._truncate_to_last_200_lines(issue_context)
+        last_message = self._truncate_to_last_200_lines(last_message)
+        git_patch = self._truncate_to_last_200_lines(git_patch or self.default_git_patch)
+
         with open(
             os.path.join(
                 os.path.dirname(__file__),
@@ -391,22 +433,10 @@ class ServiceContextIssue(ServiceContext):
         ) as f:
             template = jinja2.Template(f.read())
 
-        # Truncate last_message to include only the last 200 lines
-        if last_message:
-            lines = last_message.split('\n')
-            if len(lines) > 200:
-                last_message = '\n'.join(lines[-200:])
-        # Truncate git_patch to include only the last 200 lines
-        if git_patch:
-            lines = git_patch.split('\n')
-            if len(lines) > 200:
-                git_patch = '\n'.join(lines[-200:])
-
-
         prompt = template.render(
             issue_context=issue_context,
             last_message=last_message,
-            git_patch=git_patch or self.default_git_patch,
+            git_patch=git_patch,
         )
 
         print("guess success inputs", prompt)
