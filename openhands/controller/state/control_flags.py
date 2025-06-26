@@ -64,6 +64,10 @@ class IterationControlFlag(ControlFlag[int]):
         # Increment the current value
         self.current_value += 1
 
+        # Print the new iteration number
+        print("==========================================")
+        print(f"🔄 Starting iteration {self.current_value}")
+
 
 @dataclass
 class BudgetControlFlag(ControlFlag[float]):
