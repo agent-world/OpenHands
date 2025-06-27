@@ -261,6 +261,57 @@ class IssueResolver:
         openhands_config.sandbox.local_runtime_url = sandbox_config.local_runtime_url
         openhands_config.sandbox.user_id = sandbox_config.user_id
 
+    def _force_kill_running_process(self, runtime: Runtime) -> None:
+        """Force kill any running process in the runtime.
+
+        This method attempts multiple strategies to interrupt running processes:
+        1. Send empty command to check if process is still running
+        2. Send Ctrl+C to interrupt
+        3. Send Ctrl+Z to suspend (if needed)
+        4. Send Ctrl+D to signal EOF (if needed)
+        """
+        logger.info('Force killing any previous running command...')
+
+        # Try empty command first to see current state
+        try:
+            kill_action = CmdRunAction(command='', is_input=True)
+            kill_action.set_hard_timeout(3)
+            logger.info(kill_action, extra={'msg_type': 'ACTION'})
+            obs = runtime.run_action(kill_action)
+            logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+        except Exception as e:
+            logger.warning(f'Empty command failed: {e}')
+
+        # Send Ctrl+C to interrupt any running process
+        try:
+            interrupt_action = CmdRunAction(command='C-c', is_input=True)
+            interrupt_action.set_hard_timeout(3)
+            logger.info(interrupt_action, extra={'msg_type': 'ACTION'})
+            obs = runtime.run_action(interrupt_action)
+            logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+        except Exception as e:
+            logger.warning(f'Ctrl+C failed: {e}')
+
+        # If still running, try Ctrl+Z to suspend
+        try:
+            suspend_action = CmdRunAction(command='C-z', is_input=True)
+            suspend_action.set_hard_timeout(3)
+            logger.info(suspend_action, extra={'msg_type': 'ACTION'})
+            obs = runtime.run_action(suspend_action)
+            logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+        except Exception as e:
+            logger.warning(f'Ctrl+Z failed: {e}')
+
+        # Final attempt with Ctrl+D (EOF)
+        try:
+            eof_action = CmdRunAction(command='C-d', is_input=True)
+            eof_action.set_hard_timeout(3)
+            logger.info(eof_action, extra={'msg_type': 'ACTION'})
+            obs = runtime.run_action(eof_action)
+            logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+        except Exception as e:
+            logger.warning(f'Ctrl+D failed: {e}')
+
     def initialize_runtime(
         self,
         runtime: Runtime,
@@ -274,6 +325,9 @@ class IssueResolver:
         logger.info('BEGIN Runtime Completion Fn')
         logger.info('-' * 30)
         obs: Observation
+
+        # Force kill any previous running command before changing directory
+        self._force_kill_running_process(runtime)
 
         action = CmdRunAction(command='cd /workspace')
         logger.info(action, extra={'msg_type': 'ACTION'})
@@ -318,6 +372,9 @@ class IssueResolver:
         logger.info('BEGIN Runtime Completion Fn')
         logger.info('-' * 30)
         obs: Observation
+
+        # Force kill any previous running command before changing directory
+        self._force_kill_running_process(runtime)
 
         action = CmdRunAction(command='cd /workspace')
         logger.info(action, extra={'msg_type': 'ACTION'})
