@@ -33,7 +33,7 @@ class ServiceContextPR(ServiceContext):
     def __init__(self, strategy: IssueHandlerInterface, llm_config: LLMConfig):
         super().__init__(strategy, llm_config)
 
-    def _truncate_to_last_200_lines(self, text: str, max_lines: int = 200) -> str:
+    def _truncate_to_last_n_lines(self, text: str, max_lines: int = 200) -> str:
         """Helper function to truncate text to only the last N lines."""
         if not text:
             return text
@@ -198,11 +198,11 @@ class ServiceContextPR(ServiceContext):
         files_context = json.dumps(review_thread.files, indent=4)
 
         # Truncate all parameters
-        issues_context = self._truncate_to_last_200_lines(issues_context)
-        feedback = self._truncate_to_last_200_lines(review_thread.comment)
-        files_context = self._truncate_to_last_200_lines(files_context)
-        last_message = self._truncate_to_last_200_lines(last_message)
-        git_patch = self._truncate_to_last_200_lines(git_patch or self.default_git_patch)
+        issues_context = self._truncate_to_last_n_lines(issues_context)
+        feedback = self._truncate_to_last_n_lines(review_thread.comment)
+        files_context = self._truncate_to_last_n_lines(files_context)
+        last_message = self._truncate_to_last_n_lines(last_message)
+        git_patch = self._truncate_to_last_n_lines(git_patch or self.default_git_patch)
 
         with open(
             os.path.join(
@@ -234,10 +234,10 @@ class ServiceContextPR(ServiceContext):
         thread_context = '\n---\n'.join(thread_comments)
 
         # Truncate all parameters
-        issues_context = self._truncate_to_last_200_lines(issues_context)
-        thread_context = self._truncate_to_last_200_lines(thread_context)
-        last_message = self._truncate_to_last_200_lines(last_message)
-        git_patch = self._truncate_to_last_200_lines(git_patch or self.default_git_patch)
+        issues_context = self._truncate_to_last_n_lines(issues_context)
+        thread_context = self._truncate_to_last_n_lines(thread_context)
+        last_message = self._truncate_to_last_n_lines(last_message)
+        git_patch = self._truncate_to_last_n_lines(git_patch or self.default_git_patch)
 
         with open(
             os.path.join(
@@ -268,10 +268,10 @@ class ServiceContextPR(ServiceContext):
         review_context = '\n---\n'.join(review_comments)
 
         # Truncate all parameters
-        issues_context = self._truncate_to_last_200_lines(issues_context)
-        review_context = self._truncate_to_last_200_lines(review_context)
-        last_message = self._truncate_to_last_200_lines(last_message)
-        git_patch = self._truncate_to_last_200_lines(git_patch or self.default_git_patch)
+        issues_context = self._truncate_to_last_n_lines(issues_context)
+        review_context = self._truncate_to_last_n_lines(review_context)
+        last_message = self._truncate_to_last_n_lines(last_message)
+        git_patch = self._truncate_to_last_n_lines(git_patch or self.default_git_patch)
 
         with open(
             os.path.join(
@@ -298,7 +298,7 @@ class ServiceContextIssue(ServiceContext):
     def __init__(self, strategy: IssueHandlerInterface, llm_config: LLMConfig | None):
         super().__init__(strategy, llm_config)
 
-    def _truncate_to_last_200_lines(self, text: str, max_lines: int = 200) -> str:
+    def _truncate_to_last_n_lines(self, text: str, max_lines: int = 200) -> str:
         """Helper function to truncate text to only the last N lines."""
         if not text:
             return text
@@ -420,9 +420,9 @@ class ServiceContextIssue(ServiceContext):
             )
 
         # Truncate all parameters
-        issue_context = self._truncate_to_last_200_lines(issue_context)
-        last_message = self._truncate_to_last_200_lines(last_message)
-        git_patch = self._truncate_to_last_200_lines(git_patch or self.default_git_patch)
+        issue_context = self._truncate_to_last_n_lines(issue_context)
+        last_message = self._truncate_to_last_n_lines(last_message)
+        git_patch = self._truncate_to_last_n_lines(git_patch or self.default_git_patch)
 
         with open(
             os.path.join(

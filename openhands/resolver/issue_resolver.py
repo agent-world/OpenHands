@@ -705,15 +705,48 @@ class IssueResolver:
                     .strip()
                 )
 
+            logger.info(f'About to process issue {issue.number}...')
             output = await self.process_issue(
                 issue,
                 base_commit,
                 self.issue_handler,
                 reset_logger,
             )
-            output_fp.write(output.model_dump_json() + '\n')
+            logger.info(f'Successfully processed issue {issue.number}, writing output...')
+            output_json = output.model_dump_json()
+            logger.info(f'Output JSON length: {len(output_json)} characters')
+            output_fp.write(output_json + '\n')
             output_fp.flush()
+            logger.info(f'Successfully wrote output for issue {issue.number}')
+
+        except Exception as e:
+            logger.error(f'Exception occurred while processing issue {issue.number}: {str(e)}')
+            logger.error(f'Exception type: {type(e).__name__}')
+            import traceback
+            logger.error(f'Full traceback: {traceback.format_exc()}')
+
+            # Create a minimal output even if processing failed
+            try:
+                error_output = ResolverOutput(
+                    issue=issue,
+                    issue_type=self.issue_type,
+                    instruction="Failed to process",
+                    base_commit=base_commit,
+                    git_patch="",
+                    history=[],
+                    metrics=None,
+                    success=False,
+                    comment_success=None,
+                    result_explanation=f"Processing failed with error: {str(e)}",
+                    error=str(e),
+                )
+                output_fp.write(error_output.model_dump_json() + '\n')
+                output_fp.flush()
+                logger.info(f'Wrote error output for issue {issue.number}')
+            except Exception as write_error:
+                logger.error(f'Failed to write error output: {str(write_error)}')
 
         finally:
+            logger.info(f'Closing output file for issue {issue.number}')
             output_fp.close()
             logger.info('Finished.')
