@@ -21,26 +21,18 @@ from openhands.core.logger import openhands_logger as logger
 from openhands.core.main import create_runtime, run_controller
 from openhands.events.action import CmdRunAction, MessageAction
 from openhands.events.event import Event
-from openhands.events.observation import (
-    CmdOutputObservation,
-    ErrorObservation,
-    Observation,
-)
+from openhands.events.observation import (CmdOutputObservation,
+                                          ErrorObservation, Observation)
 from openhands.events.stream import EventStreamSubscriber
 from openhands.integrations.service_types import ProviderType
 from openhands.resolver.interfaces.issue import Issue
 from openhands.resolver.interfaces.issue_definitions import (
-    ServiceContextIssue,
-    ServiceContextPR,
-)
+    ServiceContextIssue, ServiceContextPR)
 from openhands.resolver.issue_handler_factory import IssueHandlerFactory
 from openhands.resolver.resolver_output import ResolverOutput
-from openhands.resolver.utils import (
-    codeact_user_response,
-    get_unique_uid,
-    identify_token,
-    reset_logger_for_multiprocessing,
-)
+from openhands.resolver.utils import (codeact_user_response, get_unique_uid,
+                                      identify_token,
+                                      reset_logger_for_multiprocessing)
 from openhands.runtime.base import Runtime
 from openhands.utils.async_utils import GENERAL_TIMEOUT, call_async_from_sync
 
@@ -485,6 +477,7 @@ class IssueResolver:
                 self.user_instructions_prompt_template,
                 self.conversation_instructions_prompt_template,
                 self.repo_instruction,
+                self.comment_id,
             )
         )
         # Here's how you can run the agent (similar to the `main` function) and get the final task state

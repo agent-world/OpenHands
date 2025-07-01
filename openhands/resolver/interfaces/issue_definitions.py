@@ -124,6 +124,7 @@ class ServiceContextPR(ServiceContext):
         user_instructions_prompt_template: str,
         conversation_instructions_prompt_template: str,
         repo_instruction: str | None = None,
+        comment_id: int | None = None,
     ) -> tuple[str, str, list[str]]:
         """Generate instruction for the agent."""
         user_instruction_template = jinja2.Template(user_instructions_prompt_template)
@@ -137,37 +138,104 @@ class ServiceContextPR(ServiceContext):
             issues_str = json.dumps(issue.closing_issues, indent=4)
             images.extend(extract_image_urls(issues_str))
 
-        # Handle PRs with review comments
-        review_comments_str = None
-        if issue.review_comments:
-            review_comments_str = json.dumps(issue.review_comments, indent=4)
-            images.extend(extract_image_urls(review_comments_str))
+                # Handle PRs with review comments (individual review comments, not thread comments)
+        review_comments_str = "None"
+        focused_review_comment = None
+
+        if comment_id is not None:
+            # When a specific comment is requested, show ALL existing review comments for context
+            # NOTE: We don't call get_pr_comments here as that's for thread comments, not review comments
+            all_review_comments = issue.review_comments or []
+            if len(all_review_comments) > 0:
+                formatted_comments = []
+                for i, comment in enumerate(all_review_comments, 1):
+                    if comment and comment.strip():
+                        formatted_comments.append(f"<comment_{i}>\n{comment.strip()}\n</comment_{i}>")
+                review_comments_str = "\n\n".join(formatted_comments) if formatted_comments else "None"
+                images.extend(extract_image_urls("\n".join(all_review_comments)))
+            # Use the filtered comment from issue object as the focused one
+            if issue.review_comments and len(issue.review_comments) >= 1:
+                focused_review_comment = issue.review_comments[0]
+        elif issue.review_comments and len(issue.review_comments) > 0:
+            formatted_comments = []
+            for i, comment in enumerate(issue.review_comments, 1):
+                if comment and comment.strip():
+                    formatted_comments.append(f"<comment_{i}>\n{comment.strip()}\n</comment_{i}>")
+            review_comments_str = "\n\n".join(formatted_comments) if formatted_comments else "None"
+            images.extend(extract_image_urls("\n".join(issue.review_comments)))
 
         # Handle PRs with file-specific review comments
-        review_thread_str = None
-        review_thread_file_str = None
-        if issue.review_threads:
-            review_threads = [
-                review_thread.comment for review_thread in issue.review_threads
-            ]
-            review_thread_files = []
-            for review_thread in issue.review_threads:
-                review_thread_files.extend(review_thread.files)
-            review_thread_str = json.dumps(review_threads, indent=4)
-            review_thread_file_str = json.dumps(review_thread_files, indent=4)
-            images.extend(extract_image_urls(review_thread_str))
+        review_thread_str = "None"
+        review_thread_file_str = "None"
+        focused_review_thread = None
 
-        # Format thread comments if they exist
-        thread_context = ''
-        if issue.thread_comments:
-            thread_context = '\n---\n'.join(issue.thread_comments)
-            images.extend(extract_image_urls(thread_context))
+        if comment_id is not None and issue.review_threads and len(issue.review_threads) > 0:
+            # When a specific comment is requested, use the existing filtered threads
+            formatted_threads = []
+            review_thread_files = []
+            for i, review_thread in enumerate(issue.review_threads, 1):
+                if review_thread.comment and review_thread.comment.strip():
+                    files_info = f" (files: {', '.join(review_thread.files)})" if review_thread.files else ""
+                    formatted_threads.append(f"<thread_{i}{files_info}>\n{review_thread.comment.strip()}\n</thread_{i}>")
+                    review_thread_files.extend(review_thread.files)
+            review_thread_str = "\n\n".join(formatted_threads) if formatted_threads else "None"
+            review_thread_file_str = ", ".join(sorted(set(review_thread_files))) if review_thread_files else "None"
+            images.extend(extract_image_urls("\n".join([rt.comment for rt in issue.review_threads if rt.comment])))
+            # Use the first thread as the focused one (since issue.review_threads contains filtered results)
+            if issue.review_threads and issue.review_threads[0].comment:
+                focused_review_thread = issue.review_threads[0].comment
+        elif issue.review_threads and len(issue.review_threads) > 0:
+            formatted_threads = []
+            review_thread_files = []
+            for i, review_thread in enumerate(issue.review_threads, 1):
+                if review_thread.comment and review_thread.comment.strip():
+                    files_info = f" (files: {', '.join(review_thread.files)})" if review_thread.files else ""
+                    formatted_threads.append(f"<thread_{i}{files_info}>\n{review_thread.comment.strip()}\n</thread_{i}>")
+                    review_thread_files.extend(review_thread.files)
+            review_thread_str = "\n\n".join(formatted_threads) if formatted_threads else "None"
+            review_thread_file_str = ", ".join(sorted(set(review_thread_files))) if review_thread_files else "None"
+            images.extend(extract_image_urls("\n".join([rt.comment for rt in issue.review_threads if rt.comment])))
+
+                # Handle PR thread comments (general discussion comments on the PR)
+        thread_context = "None"
+        focused_thread_comment = None
+
+        if comment_id is not None:
+            # When a specific comment is requested, fetch ALL thread comments for context
+            all_thread_comments = self._strategy.get_pr_comments(issue.number, comment_id=None) if hasattr(self._strategy, 'get_pr_comments') else None
+            if all_thread_comments and len(all_thread_comments) > 0:
+                formatted_thread_comments = []
+                for i, comment in enumerate(all_thread_comments, 1):
+                    if comment and comment.strip():
+                        formatted_thread_comments.append(f"<pr_comment_{i}>\n{comment.strip()}\n</pr_comment_{i}>")
+                thread_context = "\n\n".join(formatted_thread_comments) if formatted_thread_comments else "None"
+                images.extend(extract_image_urls("\n".join(all_thread_comments)))
+            # Use the filtered comment from issue object as the focused one
+            if issue.thread_comments and len(issue.thread_comments) >= 1:
+                focused_thread_comment = issue.thread_comments[0]
+        elif issue.thread_comments and len(issue.thread_comments) > 0:
+            formatted_thread_comments = []
+            for i, comment in enumerate(issue.thread_comments, 1):
+                if comment and comment.strip():
+                    formatted_thread_comments.append(f"<pr_comment_{i}>\n{comment.strip()}\n</pr_comment_{i}>")
+            thread_context = "\n\n".join(formatted_thread_comments) if formatted_thread_comments else "None"
+            images.extend(extract_image_urls("\n".join(issue.thread_comments)))
+
+                # Prepare the focused comment to resolve as a separate section
+        comment_to_resolve_str = "None"
+        if focused_review_comment:
+            comment_to_resolve_str = focused_review_comment.strip()
+        elif focused_review_thread:
+            comment_to_resolve_str = focused_review_thread.strip()
+        elif focused_thread_comment:
+            comment_to_resolve_str = focused_thread_comment.strip()
 
         user_instruction = user_instruction_template.render(
-            review_comments=review_comments_str,
-            review_threads=review_thread_str,
-            files=review_thread_file_str,
-            thread_context=thread_context,
+            review_comments=review_comments_str or "None",
+            review_threads=review_thread_str or "None",
+            files=review_thread_file_str or "None",
+            thread_context=thread_context or "None",
+            comment_to_resolve=comment_to_resolve_str,
         )
 
         conversation_instructions = conversation_instructions_template.render(
@@ -374,22 +442,49 @@ class ServiceContextIssue(ServiceContext):
         user_instructions_prompt_template: str,
         conversation_instructions_prompt_template: str,
         repo_instruction: str | None = None,
+        comment_id: int | None = None,
     ) -> tuple[str, str, list[str]]:
         """Generate instruction for the agent."""
-        # Format thread comments if they exist
-        thread_context = ''
-        if issue.thread_comments:
-            thread_context = '\n\nIssue Thread Comments:\n' + '\n---\n'.join(
-                issue.thread_comments
-            )
+        # Handle issue thread comments
+        thread_context = ""
+        focused_issue_comment = None
+
+        if comment_id is not None:
+            # When a specific comment is requested, fetch ALL issue comments
+            all_issue_comments = self._strategy.get_issue_comments(issue.number, comment_id=None) if hasattr(self._strategy, 'get_issue_comments') else None
+            if all_issue_comments and len(all_issue_comments) > 0:
+                formatted_issue_comments = []
+                for i, comment in enumerate(all_issue_comments, 1):
+                    if comment and comment.strip():
+                        formatted_issue_comments.append(f"<issue_comment_{i}>\n{comment.strip()}\n</issue_comment_{i}>")
+                if formatted_issue_comments:
+                    thread_context = '\n\n<issue_thread_comments>\n' + "\n\n".join(formatted_issue_comments) + '\n</issue_thread_comments>'
+            # Use the filtered comment from issue object as the focused one
+            if issue.thread_comments and len(issue.thread_comments) >= 1:
+                focused_issue_comment = issue.thread_comments[0]
+        elif issue.thread_comments and len(issue.thread_comments) > 0:
+            formatted_issue_comments = []
+            for i, comment in enumerate(issue.thread_comments, 1):
+                if comment and comment.strip():
+                    formatted_issue_comments.append(f"<issue_comment_{i}>\n{comment.strip()}\n</issue_comment_{i}>")
+            if formatted_issue_comments:
+                thread_context = '\n\n<issue_thread_comments>\n' + "\n\n".join(formatted_issue_comments) + '\n</issue_thread_comments>'
 
         images = []
         images.extend(extract_image_urls(issue.body))
-        images.extend(extract_image_urls(thread_context))
+        if thread_context:
+            images.extend(extract_image_urls(thread_context))
+
+        # Prepare the main body content for issues
+        main_body = issue.title + '\n\n' + issue.body + thread_context
+
+        # Add focused comment section if needed
+        if focused_issue_comment:
+            main_body += f"\n\n<comment_to_resolve>\n{focused_issue_comment.strip()}\n</comment_to_resolve>"
 
         user_instructions_template = jinja2.Template(user_instructions_prompt_template)
         user_instructions = user_instructions_template.render(
-            body=issue.title + '\n\n' + issue.body + thread_context
+            body=main_body
         )  # Issue body and comments
 
         conversation_instructions_template = jinja2.Template(
