@@ -177,7 +177,7 @@ class IssueResolver:
     ) -> OpenHandsConfig:
         config.default_agent = 'CodeActAgent'
         config.runtime = 'docker'
-        config.max_budget_per_task = 4
+        config.max_budget_per_task = 0 # TODO: no limit for now
         config.max_iterations = max_iterations
 
         # do not mount workspace
