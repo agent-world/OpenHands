@@ -388,6 +388,7 @@ class DockerRuntime(ActionExecutionClient):
                 working_dir='/openhands/code/',  # do not change this!
                 name=self.container_name,
                 detach=True,
+                auto_remove=True,  # Auto-remove container when it exits
                 environment=environment,
                 volumes=volumes,  # type: ignore
                 device_requests=device_requests,
