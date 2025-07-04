@@ -79,7 +79,8 @@ async def save_pr_metadata(
     await conversation_store.save_metadata(conversation)
 
 
-@mcp_server.tool()
+# disable to prevent the resolve agent creating PRs itself
+# @mcp_server.tool()
 async def create_pr(
     repo_name: Annotated[
         str, Field(description='GitHub repository ({{owner}}/{{repo}})')
