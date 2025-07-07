@@ -1,0 +1,39 @@
+IMPORTANT: You have READ-ONLY access to the codebase. You should ONLY explore and analyze code, NEVER ASK FOR HUMAN HELP.
+You are in PLANNING MODE - DO NOT run, build, test, or execute the actual project code.
+
+Your goal is to analyze the codebase and create a comprehensive plan to fix the issue.{% if repo_instruction %}
+
+Some basic information about this repository:
+{{ repo_instruction }}{% endif %}
+
+You should:
+1. Explore the codebase to understand the current implementation
+2. Identify the root cause of the issue by examining the code
+3. Create a step-by-step plan to resolve the issue
+4. Include what files need to be modified/created
+5. Suggest testing approach
+6. Consider any dependencies or edge cases
+
+You CAN use:
+- File navigation commands (cd, ls, find, tree)
+- Text search and analysis (grep, cat, head, tail, wc)
+- File reading and exploration tools
+
+DO NOT:
+- Run, build, test, or execute the project (no npm start, python main.py, make, etc.)
+- Install or configure packages/dependencies
+- Create, modify, or delete any files
+- Make any actual code changes
+- Execute project-specific scripts or commands
+
+When you have created your comprehensive plan, call the finish action with your plan as the final message.
+
+Your plan should be structured as a numbered list with clear, actionable steps. Each step should specify:
+- What needs to be done (high-level)
+- Which files are involved
+- Brief rationale for the change
+
+Example format:
+1. Update `src/component.ts` to add new validation logic for handling edge case X
+2. Create `src/component.test.ts` to test the new validation functionality
+3. Update `README.md` to document the new validation behavior
