@@ -103,11 +103,6 @@ class PlanResolver:
         with open(prompt_file, 'r') as f:
             user_instructions_prompt_template = f.read()
 
-        with open(
-            prompt_file.replace('.jinja', '-conversation-instructions.jinja')
-        ) as f:
-            conversation_instructions_prompt_template = f.read()
-
         base_domain = args.base_domain
         if base_domain is None:
             base_domain = (
@@ -141,9 +136,6 @@ class PlanResolver:
         self.repo = repo
         self.platform = platform
         self.user_instructions_prompt_template = user_instructions_prompt_template
-        self.conversation_instructions_prompt_template = (
-            conversation_instructions_prompt_template
-        )
         self.repo_instruction = repo_instruction
         self.comment_id = args.comment_id
 
@@ -435,11 +427,11 @@ class PlanResolver:
 
         self.initialize_runtime(runtime)
 
-        instruction, conversation_instructions, images_urls = (
+        instruction, _unused_conversation_instructions, images_urls = (
             issue_handler.get_instruction(
                 issue,
                 self.user_instructions_prompt_template,
-                self.conversation_instructions_prompt_template,
+                "",  # conversation instructions are merged into user prompt
                 self.repo_instruction,
                 self.comment_id,
             )
@@ -452,7 +444,6 @@ class PlanResolver:
                 initial_user_action=action,
                 runtime=runtime,
                 fake_user_response_fn=codeact_user_response,
-                conversation_instructions=conversation_instructions,
             )
             if state is None:
                 raise RuntimeError('Failed to run the agent.')
