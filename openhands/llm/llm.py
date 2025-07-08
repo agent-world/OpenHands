@@ -6,6 +6,8 @@ from functools import partial
 from typing import Any, Callable
 
 import httpx
+from langsmith import traceable
+from langsmith.utils import tracing_is_enabled
 
 from openhands.core.config import LLMConfig
 
@@ -13,13 +15,12 @@ with warnings.catch_warnings():
     warnings.simplefilter('ignore')
     import litellm
 
-from litellm import ChatCompletionMessageToolCall, ModelInfo, PromptTokensDetails
+from litellm import ChatCompletionMessageToolCall
 from litellm import Message as LiteLLMMessage
+from litellm import ModelInfo, PromptTokensDetails
 from litellm import completion as litellm_completion
 from litellm import completion_cost as litellm_completion_cost
-from litellm.exceptions import (
-    RateLimitError,
-)
+from litellm.exceptions import RateLimitError
 from litellm.types.utils import CostPerToken, ModelResponse, Usage
 from litellm.utils import create_pretrained_tokenizer
 
@@ -28,10 +29,8 @@ from openhands.core.logger import openhands_logger as logger
 from openhands.core.message import Message
 from openhands.llm.debug_mixin import DebugMixin
 from openhands.llm.fn_call_converter import (
-    STOP_WORDS,
-    convert_fncall_messages_to_non_fncall_messages,
-    convert_non_fncall_messages_to_fncall_messages,
-)
+    STOP_WORDS, convert_fncall_messages_to_non_fncall_messages,
+    convert_non_fncall_messages_to_fncall_messages)
 from openhands.llm.metrics import Metrics
 from openhands.llm.retry_mixin import RetryMixin
 
@@ -214,6 +213,7 @@ class LLM(RetryMixin, DebugMixin):
             retry_multiplier=self.config.retry_multiplier,
             retry_listener=self.retry_listener,
         )
+        @traceable(name=f"llm_completion_{self.config.model}", run_type="llm")
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             """Wrapper for the litellm completion function. Logs the input and output of the completion function."""
             from openhands.io import json
@@ -361,6 +361,23 @@ class LLM(RetryMixin, DebugMixin):
 
             # post-process the response first to calculate cost
             cost = self._post_completion(resp)
+
+            # Add LangSmith tracing metadata if enabled
+            if tracing_is_enabled():
+                try:
+                    from langsmith import get_current_run_tree
+                    current_run = get_current_run_tree()
+                    if current_run:
+                        metadata = self._extract_langsmith_metadata(messages, resp)
+                        current_run.update(
+                            inputs={"messages": messages},
+                            outputs={"response": message_back},
+                            metadata=metadata
+                        )
+                except Exception as e:
+                    # Don't break the flow if langsmith tracing fails
+                    logger.debug(f"Failed to add LangSmith metadata: {e}")
+                    pass
 
             # log for evals or other scripts that need the raw completion
             if self.config.log_completions:
@@ -553,6 +570,43 @@ class LLM(RetryMixin, DebugMixin):
         The result is cached during initialization for performance.
         """
         return self._function_calling_active
+
+    def _extract_langsmith_metadata(self, messages: list[dict[str, Any]], response: ModelResponse | None = None) -> dict[str, Any]:
+        """Extract metadata for LangSmith tracing."""
+        metadata = {
+            'model': self.config.model,
+            'temperature': self.config.temperature,
+            'max_output_tokens': self.config.max_output_tokens,
+            'function_calling_active': self.is_function_calling_active(),
+            'vision_active': self.vision_is_active(),
+            'caching_active': self.is_caching_prompt_active(),
+        }
+
+        # Add message count
+        if messages:
+            metadata['message_count'] = len(messages)
+
+        # Add response metadata if available
+        if response:
+            usage = response.get('usage')
+            if usage:
+                metadata['prompt_tokens'] = usage.get('prompt_tokens', 0)
+                metadata['completion_tokens'] = usage.get('completion_tokens', 0)
+                metadata['total_tokens'] = usage.get('total_tokens', 0)
+
+                # Add cache hit tokens if available
+                prompt_tokens_details = usage.get('prompt_tokens_details')
+                if prompt_tokens_details and prompt_tokens_details.cached_tokens:
+                    metadata['cached_tokens'] = prompt_tokens_details.cached_tokens
+
+                # Add cache write tokens if available
+                model_extra = usage.get('model_extra', {})
+                if model_extra.get('cache_creation_input_tokens'):
+                    metadata['cache_write_tokens'] = model_extra['cache_creation_input_tokens']
+
+            metadata['response_id'] = response.get('id', 'unknown')
+
+        return metadata
 
     def _post_completion(self, response: ModelResponse) -> float:
         """Post-process the completion response.

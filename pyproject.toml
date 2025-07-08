@@ -22,6 +22,7 @@ packages = [
 python = "^3.12,<3.14"
 litellm = "^1.60.0, !=1.64.4, !=1.67.*"            # avoid 1.64.4 (known bug) & 1.67.* (known bug #10272)
 aiohttp = ">=3.9.0,!=3.11.13"                      # Pin to avoid yanked version 3.11.13
+langsmith = "^0.2.0"                                # LangSmith tracing for LLM calls
 google-generativeai = "*"                          # To use litellm with Gemini Pro API
 google-api-python-client = "^2.164.0"              # For Google Sheets API
 google-auth-httplib2 = "*"                         # For Google Sheets authentication

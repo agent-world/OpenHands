@@ -2,6 +2,9 @@ import asyncio
 from functools import partial
 from typing import Any, Callable
 
+from langsmith import traceable
+from langsmith.utils import tracing_is_enabled
+
 from openhands.core.exceptions import UserCancelledError
 from openhands.core.logger import openhands_logger as logger
 from openhands.llm.async_llm import LLM_RETRY_EXCEPTIONS, AsyncLLM
@@ -40,6 +43,7 @@ class StreamingLLM(AsyncLLM):
             retry_max_wait=self.config.retry_max_wait,
             retry_multiplier=self.config.retry_multiplier,
         )
+        @traceable(name=f"streaming_llm_completion_{self.config.model}", run_type="llm")
         async def async_streaming_completion_wrapper(*args: Any, **kwargs: Any) -> Any:
             messages: list[dict[str, Any]] | dict[str, Any] = []
 
@@ -75,6 +79,9 @@ class StreamingLLM(AsyncLLM):
                 resp = await async_streaming_completion_unwrapped(*args, **kwargs)
 
                 # For streaming we iterate over the chunks
+                full_response = ""
+                last_chunk = None
+
                 async for chunk in resp:
                     # Check for cancellation before yielding the chunk
                     if (
@@ -89,9 +96,30 @@ class StreamingLLM(AsyncLLM):
                     message_back = chunk['choices'][0]['delta'].get('content', '')
                     if message_back:
                         self.log_response(message_back)
+                        full_response += message_back
                     self._post_completion(chunk)
 
+                    # Keep track of the last chunk for metadata
+                    last_chunk = chunk
+
                     yield chunk
+
+                # Add LangSmith tracing metadata if enabled (after streaming is complete)
+                if tracing_is_enabled() and last_chunk:
+                    try:
+                        from langsmith import get_current_run_tree
+                        current_run = get_current_run_tree()
+                        if current_run:
+                            metadata = self._extract_langsmith_metadata(messages, last_chunk)
+                            current_run.update(
+                                inputs={"messages": messages},
+                                outputs={"response": full_response},
+                                metadata=metadata
+                            )
+                    except Exception as e:
+                        # Don't break the flow if langsmith tracing fails
+                        logger.debug(f"Failed to add LangSmith metadata: {e}")
+                        pass
 
             except UserCancelledError:
                 logger.debug('LLM request cancelled by user.')

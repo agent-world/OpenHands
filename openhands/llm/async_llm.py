@@ -2,15 +2,14 @@ import asyncio
 from functools import partial
 from typing import Any, Callable
 
+from langsmith import traceable
+from langsmith.utils import tracing_is_enabled
 from litellm import acompletion as litellm_acompletion
 
 from openhands.core.exceptions import UserCancelledError
 from openhands.core.logger import openhands_logger as logger
-from openhands.llm.llm import (
-    LLM,
-    LLM_RETRY_EXCEPTIONS,
-    REASONING_EFFORT_SUPPORTED_MODELS,
-)
+from openhands.llm.llm import (LLM, LLM_RETRY_EXCEPTIONS,
+                               REASONING_EFFORT_SUPPORTED_MODELS)
 from openhands.utils.shutdown_listener import should_continue
 
 
@@ -46,6 +45,7 @@ class AsyncLLM(LLM):
             retry_max_wait=self.config.retry_max_wait,
             retry_multiplier=self.config.retry_multiplier,
         )
+        @traceable(name=f"async_llm_completion_{self.config.model}", run_type="llm")
         async def async_completion_wrapper(*args: Any, **kwargs: Any) -> Any:
             """Wrapper for the litellm acompletion function that adds logging and cost tracking."""
             messages: list[dict[str, Any]] | dict[str, Any] = []
@@ -98,6 +98,23 @@ class AsyncLLM(LLM):
 
                 # log costs and tokens used
                 self._post_completion(resp)
+
+                # Add LangSmith tracing metadata if enabled
+                if tracing_is_enabled():
+                    try:
+                        from langsmith import get_current_run_tree
+                        current_run = get_current_run_tree()
+                        if current_run:
+                            metadata = self._extract_langsmith_metadata(messages, resp)
+                            current_run.update(
+                                inputs={"messages": messages},
+                                outputs={"response": message_back},
+                                metadata=metadata
+                            )
+                    except Exception as e:
+                        # Don't break the flow if langsmith tracing fails
+                        logger.debug(f"Failed to add LangSmith metadata: {e}")
+                        pass
 
                 # We do not support streaming in this method, thus return resp
                 return resp
