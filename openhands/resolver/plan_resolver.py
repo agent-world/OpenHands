@@ -369,7 +369,7 @@ class PlanResolver:
         output_dir: str, issue_type: str, issue_number: int
     ) -> str:
         workspace_base = os.path.join(
-            output_dir, 'workspace', f'{issue_type}_{issue_number}_plan'
+            output_dir, 'workspace', f'{issue_type}_{issue_number}'
         )
         return os.path.abspath(workspace_base)
 
