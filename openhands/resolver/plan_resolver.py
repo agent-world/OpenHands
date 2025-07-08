@@ -350,17 +350,48 @@ class PlanResolver:
         """
         plan = ""
 
+        # Debug: Log the last few events to understand the structure
+        logger.info(f"Extracting plan from history with {len(history)} events")
+        for i, event in enumerate(reversed(history[:5])):  # Look at last 5 events
+            logger.info(f"Event {i}: action={event.get('action')}, keys={list(event.keys())}")
+            if event.get('action') == 'finish':
+                logger.info(f"Finish event details: {event}")
+
         # Look through the history in reverse order to find the final plan
         for event in reversed(history):
-            if event.get('action') == 'finish' and event.get('args', {}).get('reason'):
-                plan = event['args']['reason']
-                break
+            # Check if this is a finish action with final_thought
+            if event.get('action') == 'finish':
+                # Try different possible locations for the plan text
+                if event.get('final_thought'):
+                    plan = event['final_thought']
+                    logger.info(f"Found plan in final_thought: {plan[:100]}...")
+                    break
+                elif event.get('args', {}).get('final_thought'):
+                    plan = event['args']['final_thought']
+                    logger.info(f"Found plan in args.final_thought: {plan[:100]}...")
+                    break
+                elif event.get('args', {}).get('reason'):
+                    plan = event['args']['reason']
+                    logger.info(f"Found plan in args.reason: {plan[:100]}...")
+                    break
+                elif event.get('message'):
+                    # Sometimes the final_thought might be in message field
+                    message = event['message']
+                    if isinstance(message, str) and '1.' in message and '2.' in message:
+                        plan = message
+                        logger.info(f"Found plan in message: {plan[:100]}...")
+                        break
+            # Check if this is a message action that looks like a plan
             elif event.get('action') == 'message' and event.get('args', {}).get('content'):
                 content = event['args']['content']
                 # Check if this looks like a plan (contains numbered steps)
                 if '1.' in content and '2.' in content:
                     plan = content
+                    logger.info(f"Found plan in message content: {plan[:100]}...")
                     break
+
+        if not plan:
+            logger.warning("No plan found in conversation history")
 
         return plan
 
